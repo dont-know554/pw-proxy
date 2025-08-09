@@ -97,7 +97,7 @@ export default {
     
     if (handler) {
       try {
-        return await handler(request, url);
+        return await handler(request, url, env);
       } catch (error) {
         console.error('Handler error:', error);
         return createErrorResponse('Internal server error', 500);
@@ -310,15 +310,108 @@ async function handleTopics(request, url) {
   return proxyRequest(request, url, apiPath);
 }
 
-async function handleAllContents(request, url) {
+async function handleAllContents(request, url, env) {
   // Extract path parameters from URL like: /api/batch/{batchId}/subject/{subjectSlug}/topic/{topicId}/all-contents
   const pathParts = url.pathname.split('/');
   const batchId = pathParts[3];
   const subjectSlug = pathParts[5];
   const topicId = pathParts[7];
   
-  const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/topic/${topicId}/all-contents`;
-  return proxyRequest(request, url, apiPath);
+  const searchParams = new URLSearchParams(url.search);
+  const contentType = searchParams.get('type') || 'vidoes';
+  
+  // Create cache key for KV storage
+  const cacheKey = `content_${batchId}_${subjectSlug}_${topicId}_${contentType}`;
+  
+  try {
+    // 1. Try API first
+    const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/topic/${topicId}/all-contents`;
+    const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
+    
+    const proxyRequest = new Request(apiUrl, {
+      method: request.method,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'PW-Avengers-Proxy/1.0',
+      },
+      body: request.method !== 'GET' ? request.body : undefined,
+    });
+
+    const response = await fetch(proxyRequest);
+    
+    if (response.ok) {
+      const data = await response.text();
+      
+      // 2. Cache successful response in KV storage
+      if (env && env.NOTES_CACHE) {
+        try {
+          await env.NOTES_CACHE.put(cacheKey, JSON.stringify({
+            data: JSON.parse(data),
+            timestamp: Date.now(),
+            contentType: contentType,
+            batchId: batchId
+          }), {
+            expirationTtl: 24 * 60 * 60 // 24 hours
+          });
+          console.log(`✅ Cached content for key: ${cacheKey}`);
+        } catch (cacheError) {
+          console.error('⚠️ Failed to cache data:', cacheError);
+        }
+      }
+      
+      return new Response(data, {
+        status: response.status,
+        headers: {
+          ...CORS_HEADERS,
+          'Content-Type': 'application/json',
+          'X-Cache-Status': 'MISS'
+        },
+      });
+    } else {
+      throw new Error(`API responded with status: ${response.status}`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ API failed for ${cacheKey}:`, error.message);
+    
+    // 3. API failed - check KV cache
+    if (env && env.NOTES_CACHE) {
+      try {
+        const cachedData = await env.NOTES_CACHE.get(cacheKey);
+        if (cachedData) {
+          const parsed = JSON.parse(cachedData);
+          const age = Date.now() - parsed.timestamp;
+          const ageMinutes = Math.floor(age / 1000 / 60);
+          
+          console.log(`✅ Serving cached data for ${cacheKey} (${ageMinutes} minutes old)`);
+          
+          // Add cache metadata to response
+          const responseData = {
+            ...parsed.data,
+            _cached: true,
+            _cacheAge: ageMinutes,
+            _cacheTimestamp: new Date(parsed.timestamp).toISOString()
+          };
+          
+          return new Response(JSON.stringify(responseData), {
+            status: 200,
+            headers: {
+              ...CORS_HEADERS,
+              'Content-Type': 'application/json',
+              'X-Cache-Status': 'HIT',
+              'X-Cache-Age': ageMinutes.toString()
+            },
+          });
+        }
+      } catch (cacheError) {
+        console.error('⚠️ Failed to read from cache:', cacheError);
+      }
+    }
+    
+    // 4. No cache available - return error
+    console.error(`❌ No cache available for ${cacheKey}`);
+    return createErrorResponse(`Content not available: ${error.message}`, 503);
+  }
 }
 
 async function handleStreamInfo(request, url) {

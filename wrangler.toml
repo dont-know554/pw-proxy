@@ -20,5 +20,11 @@ name = "pwxavengers-proxy-staging"
 # pattern = "api.your-domain.com/*"
 # zone_name = "your-domain.com"
 
+# KV namespace for caching notes and DPPs
+[[kv_namespaces]]
+binding = "NOTES_CACHE"
+id = "a4dbe046743d4cdd890e5c9209be476f"
+preview_id = "your-preview-kv-namespace-id"
+
 [observability.logs]
 enabled = true
