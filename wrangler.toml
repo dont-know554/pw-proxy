@@ -1,0 +1,24 @@
+name = "pwxavengers-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Note: logpush requires paid plan, using console.log for free tier logging
+
+[env.production]
+name = "pwxavengers-proxy"
+
+[env.staging]
+name = "pwxavengers-proxy-staging"
+
+# Routes configuration - uncomment and modify as needed
+# routes = [
+#   { pattern = "your-domain.com/api/*", zone_name = "your-domain.com" }
+# ]
+
+# Custom domain configuration - uncomment and modify as needed
+# [[env.production.routes]]
+# pattern = "api.your-domain.com/*"
+# zone_name = "your-domain.com"
+
+[observability.logs]
+enabled = true

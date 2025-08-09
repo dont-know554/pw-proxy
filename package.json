@@ -1,0 +1,28 @@
+{
+  "name": "pwxavengers-proxy",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker proxy for PW x AVENGERS API endpoints",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test": "wrangler dev --local"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "api-proxy",
+    "pw-avengers",
+    "educational-platform"
+  ],
+  "author": "PW x AVENGERS",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
