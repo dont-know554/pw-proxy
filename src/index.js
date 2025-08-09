@@ -326,8 +326,7 @@ async function handleAllContents(request, url, env) {
   try {
     // 1. Try API first
     const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/topic/${topicId}/all-contents`;
-    // 🧪 TEST: Temporarily break API endpoint to test cache fallback
-    const apiUrl = `${BASE_API_URL}-BROKEN-FOR-TESTING${apiPath}${url.search}`;
+    const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
     
     const proxyRequest = new Request(apiUrl, {
       method: request.method,
