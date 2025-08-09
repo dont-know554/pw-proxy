@@ -46,8 +46,13 @@ const ALLOWED_BATCH_IDS = [
   "65e2bbf5a07cbf0018f198f5", // power batch 10
   "65df1046479ea30018d33041", // udaan 3.0 2025
   "65ded9c3c66de20018471ac6", // yakeen neet 6.0
-  "", // power batch
+  "685cf3cd8746216a1638b4d4", // arjuna jee 2.0 hindi
   "677ba4ff2e14829a8d5ca593", // jkbose baaz 11 1.0
+  "67a30b5993d3824e289b363e", // uday commerce 2.0
+  "685cf3cd6e987196fab1ecc6", // lakshya jee 2.0 hindi
+  "679da9537999da8c2331b4a7", // sbi po interview batch
+  "", // udaan 2024
+  "6718e9d32ae489ddf85c027f", // ibps rrb po intrview
 
 ];
 
