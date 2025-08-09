@@ -57,7 +57,7 @@ const ALLOWED_BATCH_IDS = [
 ];
 
 // Search terms for efficient batch discovery
-const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang', 'prayas'];
+const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang', 'prayas', 'ibps', 'sbi', 'jkbose'];
 
 // CORS headers for all responses
 const CORS_HEADERS = {
