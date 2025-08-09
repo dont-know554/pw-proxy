@@ -38,6 +38,13 @@ const ALLOWED_BATCH_IDS = [
   "65ded79ac66de2001847128f", // yakeen neet 5.0
   "67fc9f296743740c0bee0208", // udaan goat
   "67becd2b508fc4755e5c5bde", // uday 2.0
+  "67fc9f2953d560becbad4ba7", // neev goat
+  "678a39b07764c4041763336a", // prayas jee 2.0
+  "67a3116376be70372c9967de", // uday 3.0 commerce
+  "67e555b89419a6e8b3ab706c", // ssb mantra
+  "67be1ea98627cf3431ce4132", // udaan reloaded
+  "65e2bbf5a07cbf0018f198f5", // power batch 10
+  "65df1046479ea30018d33041", // udaan 3.0 2025
 
 ];
 
