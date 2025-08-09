@@ -5,9 +5,6 @@
 
 const BASE_API_URL = 'https://pw-api1-ab3091004643.herokuapp.com';
 
-// 🧪 TEST FLAG: Set to true to simulate API failures and test cache fallback
-const SIMULATE_API_FAILURE = false;
-
 // 🎯 ALLOWED BATCH IDs - Manage batches server-side
 // Add/remove batch IDs here to control which batches are shown
 const ALLOWED_BATCH_IDS = [
@@ -327,15 +324,10 @@ async function handleAllContents(request, url, env) {
   const cacheKey = `content_${batchId}_${subjectSlug}_${topicId}_${contentType}`;
   
   try {
-    // 🧪 TEST: Simulate API failure if flag is enabled
-    if (SIMULATE_API_FAILURE) {
-      console.log(`🧪 SIMULATING API FAILURE for testing cache fallback: ${cacheKey}`);
-      throw new Error('Simulated API failure for testing');
-    }
-    
     // 1. Try API first
     const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/topic/${topicId}/all-contents`;
-    const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
+    // 🧪 TEST: Temporarily break API endpoint to test cache fallback
+    const apiUrl = `${BASE_API_URL}-BROKEN-FOR-TESTING${apiPath}${url.search}`;
     
     const proxyRequest = new Request(apiUrl, {
       method: request.method,
