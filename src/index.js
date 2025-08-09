@@ -45,6 +45,9 @@ const ALLOWED_BATCH_IDS = [
   "67be1ea98627cf3431ce4132", // udaan reloaded
   "65e2bbf5a07cbf0018f198f5", // power batch 10
   "65df1046479ea30018d33041", // udaan 3.0 2025
+  "65ded9c3c66de20018471ac6", // yakeen neet 6.0
+  "", // power batch
+  "677ba4ff2e14829a8d5ca593", // jkbose baaz 11 1.0
 
 ];
 
