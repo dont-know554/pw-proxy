@@ -29,10 +29,20 @@ const ALLOWED_BATCH_IDS = [
   "67be1ea9508fc4755e582d8e", // udaan 2.0
   "6789f904f69b15eb632db640", // lakshya jee 2.0
   "678a0ffe3afbca5384419b05", // lakshya neet 2.0
+  "67738e4a5787b05d8ec6e07f", // prayas jee
+  "67738e4c6e30ac746bcb34d7", // yakeen neet
+  "65d898a774dfb200182ce11b", // udaan 2025
+  "6784c47dca2bac6bb557821c", // uday nda foundation
+  "67e4034e1d90a238e0186a0a", // arjuna neet weekend express
+  "6774f1aa440cb58775292c6e", // udaan hindi medium
+  "65ded79ac66de2001847128f", // yakeen neet 5.0
+  "67fc9f296743740c0bee0208", // udaan goat
+  "67becd2b508fc4755e5c5bde", // uday 2.0
+
 ];
 
 // Search terms for efficient batch discovery
-const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang'];
+const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang', 'prayas'];
 
 // CORS headers for all responses
 const CORS_HEADERS = {
