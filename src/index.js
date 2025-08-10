@@ -79,6 +79,7 @@ const routes = {
   '/api/video/stream-info': handleStreamInfo,
   '/api/otp': handleOTP,
   '/api/url': handleUrl,
+  '/api/video-data': handleVideoData,
 };
 
 export default {
@@ -328,6 +329,39 @@ async function handleOTP(request, url) {
 
 async function handleUrl(request, url) {
   return proxyRequest(request, url, '/api/url');
+}
+
+async function handleVideoData(request, url) {
+  // Extract query parameters
+  const batchId = url.searchParams.get('batchId');
+  const scheduleId = url.searchParams.get('scheduleId');
+  
+  // Validate required parameters
+  if (!batchId || !scheduleId) {
+    return createErrorResponse('Missing required parameters: batchId and scheduleId', 400);
+  }
+  
+  // Construct the target URL with query parameters
+  const targetUrl = new URL(`https://urlrec-072ca98cd12d.herokuapp.com/get-video-data`);
+  targetUrl.searchParams.set('batchId', batchId);
+  targetUrl.searchParams.set('scheduleId', scheduleId);
+  
+  // Proxy the request to the new API endpoint
+  const apiResponse = await fetch(targetUrl.toString());
+  
+  // Create a new response with CORS headers
+  const responseBody = await apiResponse.text();
+  const responseHeaders = new Headers(apiResponse.headers);
+  
+  // Add CORS headers
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    responseHeaders.set(key, value);
+  });
+  
+  return new Response(responseBody, {
+    status: apiResponse.status,
+    headers: responseHeaders
+  });
 }
 
 /**
