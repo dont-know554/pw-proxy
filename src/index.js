@@ -5,8 +5,9 @@
 
 const BASE_API_URL = 'https://pw-api1-ab3091004643.herokuapp.com';
 
-// 🎯 ALLOWED BATCH IDs - Manage batches server-side
-// Add/remove batch IDs here to control which batches are shown
+// 🎯 BATCH FILTERING DISABLED - All batches from API will be shown
+// Previously used for server-side filtering, now commented out
+/*
 const ALLOWED_BATCH_IDS = [
   "6774ebb37aa1a60276d43e7c",  // neev
   "65df241600f257001881fbbd",  // udaan
@@ -53,11 +54,11 @@ const ALLOWED_BATCH_IDS = [
   "679da9537999da8c2331b4a7", // sbi po interview batch
   "", // udaan 2024
   "6718e9d32ae489ddf85c027f", // ibps rrb po intrview
-
 ];
 
-// Search terms for efficient batch discovery
+// Search terms for efficient batch discovery (no longer used)
 const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang', 'prayas', 'ibps', 'sbi', 'jkbose'];
+*/
 
 // CORS headers for all responses
 const CORS_HEADERS = {
@@ -172,106 +173,9 @@ async function proxyRequest(request, url, apiPath) {
  * Route Handlers
  */
 async function handleBatches(request, url) {
-  const searchParams = new URLSearchParams(url.search);
-  const query = searchParams.get('q');
-  const page = parseInt(searchParams.get('page')) || 1;
-  const limit = parseInt(searchParams.get('limit')) || 50;
-
-  try {
-    let filteredBatches = [];
-    
-    if (query) {
-      // User has a search query - search and filter
-      console.log(`🔍 Searching for: "${query}"`);
-      const apiUrl = `${BASE_API_URL}/api/batches?page=${page}&limit=100&q=${encodeURIComponent(query)}`;
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      
-      // Filter results to only allowed batches
-      filteredBatches = data.batches?.filter(batch => 
-        ALLOWED_BATCH_IDS.includes(batch._id)
-      ) || [];
-      
-      console.log(`📊 Found ${filteredBatches.length} allowed batches from search`);
-    } else {
-      // No search query - get all allowed batches efficiently
-      console.log('🏠 Loading homepage batches (server-side filtering)');
-      
-      // Use parallel requests with search terms to find allowed batches
-      const fetchPromises = SEARCH_TERMS.map(term =>
-        fetch(`${BASE_API_URL}/api/batches?page=1&limit=100&q=${encodeURIComponent(term)}`)
-          .then(res => res.json())
-          .catch(err => {
-            console.error(`❌ Error fetching batches for "${term}":`, err);
-            return { batches: [] };
-          })
-      );
-      
-      // Wait for all requests to complete
-      const results = await Promise.all(fetchPromises);
-      const foundBatchIds = new Set();
-      
-      // Process results and collect allowed batches
-      results.forEach(searchData => {
-        if (searchData.batches) {
-          searchData.batches.forEach(batch => {
-            if (ALLOWED_BATCH_IDS.includes(batch._id) && !foundBatchIds.has(batch._id)) {
-              filteredBatches.push(batch);
-              foundBatchIds.add(batch._id);
-            }
-          });
-        }
-      });
-      
-      // Fallback: try broader search if we don't have enough batches
-      if (filteredBatches.length < ALLOWED_BATCH_IDS.length * 0.5) {
-        console.log('🔄 Trying fallback search for missing batches...');
-        try {
-          const fallbackResponse = await fetch(`${BASE_API_URL}/api/batches?page=1&limit=200`);
-          const fallbackData = await fallbackResponse.json();
-          
-          fallbackData.batches?.forEach(batch => {
-            if (ALLOWED_BATCH_IDS.includes(batch._id) && !foundBatchIds.has(batch._id)) {
-              filteredBatches.push(batch);
-              foundBatchIds.add(batch._id);
-            }
-          });
-        } catch (fallbackErr) {
-          console.error('❌ Fallback search failed:', fallbackErr);
-        }
-      }
-      
-      console.log(`✅ Server-side filtering complete: ${filteredBatches.length} batches`);
-    }
-    
-    // Apply pagination to filtered results
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedBatches = filteredBatches.slice(startIndex, endIndex);
-    
-    // Return filtered and paginated results
-    const response = {
-      batches: paginatedBatches,
-      totalCount: filteredBatches.length,
-      page: page,
-      limit: limit,
-      hasMore: endIndex < filteredBatches.length,
-      allowedBatchIds: ALLOWED_BATCH_IDS.length, // For debugging
-      serverFiltered: true // Flag to indicate server-side filtering
-    };
-    
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        ...CORS_HEADERS,
-      },
-    });
-    
-  } catch (error) {
-    console.error('❌ Error in handleBatches:', error);
-    return createErrorResponse('Failed to fetch batches', 500);
-  }
+  // Simply proxy the request to the original API without any filtering
+  console.log('🌐 Proxying batches request - showing all batches');
+  return proxyRequest(request, url, '/api/batches');
 }
 
 async function handleBatch(request, url) {
