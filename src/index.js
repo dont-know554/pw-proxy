@@ -318,9 +318,9 @@ async function handleAllContents(request, url, env) {
   const topicId = pathParts[7];
   
   const searchParams = new URLSearchParams(url.search);
-  const contentType = searchParams.get('type') || 'vidoes';
+  const contentType = searchParams.get('type') || 'videos';
   
-  // Create cache key for KV storage
+  // Create cache key for Supabase storage
   const cacheKey = `content_${batchId}_${subjectSlug}_${topicId}_${contentType}`;
   
   try {
@@ -341,22 +341,22 @@ async function handleAllContents(request, url, env) {
     
     if (response.ok) {
       const data = await response.text();
+      const parsedData = JSON.parse(data);
       
-      // 2. Cache successful response in KV storage
-      if (env && env.NOTES_CACHE) {
-        try {
-          await env.NOTES_CACHE.put(cacheKey, JSON.stringify({
-            data: JSON.parse(data),
-            timestamp: Date.now(),
-            contentType: contentType,
-            batchId: batchId
-          }), {
-            expirationTtl: 24 * 60 * 60 // 24 hours
-          });
-          console.log(`✅ Cached content for key: ${cacheKey}`);
-        } catch (cacheError) {
-          console.error('⚠️ Failed to cache data:', cacheError);
-        }
+      // 2. Cache successful response in Supabase
+      try {
+        await cacheToSupabase(env, cacheKey, {
+          batch_id: batchId,
+          subject_slug: subjectSlug,
+          topic_id: topicId,
+          content_type: contentType,
+          data: parsedData,
+          response_size: data.length,
+          api_status: response.status
+        });
+        console.log(`✅ Cached content for key: ${cacheKey}`);
+      } catch (cacheError) {
+        console.error('⚠️ Failed to cache data:', cacheError);
       }
       
       return new Response(data, {
@@ -374,38 +374,38 @@ async function handleAllContents(request, url, env) {
   } catch (error) {
     console.error(`❌ API failed for ${cacheKey}:`, error.message);
     
-    // 3. API failed - check KV cache
-    if (env && env.NOTES_CACHE) {
-      try {
-        const cachedData = await env.NOTES_CACHE.get(cacheKey);
-        if (cachedData) {
-          const parsed = JSON.parse(cachedData);
-          const age = Date.now() - parsed.timestamp;
-          const ageMinutes = Math.floor(age / 1000 / 60);
-          
-          console.log(`✅ Serving cached data for ${cacheKey} (${ageMinutes} minutes old)`);
-          
-          // Add cache metadata to response
-          const responseData = {
-            ...parsed.data,
-            _cached: true,
-            _cacheAge: ageMinutes,
-            _cacheTimestamp: new Date(parsed.timestamp).toISOString()
-          };
-          
-          return new Response(JSON.stringify(responseData), {
-            status: 200,
-            headers: {
-              ...CORS_HEADERS,
-              'Content-Type': 'application/json',
-              'X-Cache-Status': 'HIT',
-              'X-Cache-Age': ageMinutes.toString()
-            },
-          });
-        }
-      } catch (cacheError) {
-        console.error('⚠️ Failed to read from cache:', cacheError);
+    // 3. API failed - check Supabase cache
+    try {
+      const cachedData = await getFromSupabaseCache(env, cacheKey);
+      if (cachedData) {
+        const age = Date.now() - new Date(cachedData.created_at).getTime();
+        const ageMinutes = Math.floor(age / 1000 / 60);
+        
+        console.log(`✅ Serving cached data for ${cacheKey} (${ageMinutes} minutes old)`);
+        
+        // Increment hit count
+        await incrementCacheHit(env, cacheKey);
+        
+        // Add cache metadata to response
+        const responseData = {
+          ...cachedData.data,
+          _cached: true,
+          _cacheAge: ageMinutes,
+          _cacheTimestamp: cachedData.created_at
+        };
+        
+        return new Response(JSON.stringify(responseData), {
+          status: 200,
+          headers: {
+            ...CORS_HEADERS,
+            'Content-Type': 'application/json',
+            'X-Cache-Status': 'HIT',
+            'X-Cache-Age': ageMinutes.toString()
+          },
+        });
       }
+    } catch (cacheError) {
+      console.error('⚠️ Failed to read from cache:', cacheError);
     }
     
     // 4. No cache available - return error
@@ -424,6 +424,95 @@ async function handleOTP(request, url) {
 
 async function handleUrl(request, url) {
   return proxyRequest(request, url, '/api/url');
+}
+
+/**
+ * Cache data to Supabase
+ */
+async function cacheToSupabase(env, cacheKey, cacheData) {
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
+  }
+  
+  const response = await fetch(`${supabaseUrl}/rest/v1/content_cache`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey,
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify({
+      cache_key: cacheKey,
+      ...cacheData,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours from now
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Supabase cache write failed: ${error}`);
+  }
+  
+  return await response.json();
+}
+
+/**
+ * Get data from Supabase cache
+ */
+async function getFromSupabaseCache(env, cacheKey) {
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
+  }
+  
+  const response = await fetch(`${supabaseUrl}/rest/v1/content_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&expires_at=gte.${new Date().toISOString()}&select=*`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Supabase cache read failed: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.length > 0 ? data[0] : null;
+}
+
+/**
+ * Increment cache hit count
+ */
+async function incrementCacheHit(env, cacheKey) {
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return; // Fail silently for hit counting
+  }
+  
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/rpc/increment_cache_hit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey
+      },
+      body: JSON.stringify({
+        cache_key_param: cacheKey
+      })
+    });
+  } catch (error) {
+    console.error('Failed to increment cache hit:', error);
+  }
 }
 
 /**

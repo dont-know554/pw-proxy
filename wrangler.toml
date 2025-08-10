@@ -20,11 +20,10 @@ name = "pwxavengers-proxy-staging"
 # pattern = "api.your-domain.com/*"
 # zone_name = "your-domain.com"
 
-# KV namespace for caching notes and DPPs
-[[kv_namespaces]]
-binding = "NOTES_CACHE"
-id = "a4dbe046743d4cdd890e5c9209be476f"
-preview_id = "your-preview-kv-namespace-id"
+# Supabase configuration for caching
+[vars]
+SUPABASE_URL = "https://dnbytwnhwiemhbvlsrcd.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuYnl0d25od2llbWhidmxzcmNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2MjM0MjgsImV4cCI6MjA3MDE5OTQyOH0.Vjwdm9nqcJ4KanIGXUxyQduLAAr090-FaO3vb3MhoUw"
 
 [observability.logs]
 enabled = true
