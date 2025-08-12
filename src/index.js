@@ -27,10 +27,13 @@ export default {
     
     // Check if the request is coming from an allowed domain
     const origin = request.headers.get('Origin');
-    const allowedOrigin = 'https://pwxavengers.netlify.app';
+    const allowedOrigins = [
+      'https://pwxavengers.netlify.app',
+      'https://pwxavengers.xyz'
+    ];
     
-    // If Origin header is present and doesn't match our allowed domain, reject the request
-    if (origin && origin !== allowedOrigin) {
+    // If Origin header is present and doesn't match our allowed domains, reject the request
+    if (origin && !allowedOrigins.includes(origin)) {
       return createErrorResponse('Access denied: Invalid origin', 403);
     }
     
@@ -40,7 +43,7 @@ export default {
         status: 200,
         headers: {
           ...CORS_HEADERS,
-          'Access-Control-Allow-Origin': allowedOrigin,
+          'Access-Control-Allow-Origin': origin || allowedOrigins[0],
         },
       });
     }
@@ -54,7 +57,7 @@ export default {
         
         // Add the allowed origin to the response headers
         const newHeaders = new Headers(response.headers);
-        newHeaders.set('Access-Control-Allow-Origin', allowedOrigin);
+        newHeaders.set('Access-Control-Allow-Origin', origin || allowedOrigins[0]);
         
         return new Response(response.body, {
           status: response.status,
