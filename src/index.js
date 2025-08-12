@@ -1,64 +1,4 @@
-/**
- * PW x AVENGERS API Proxy Worker
- * Cloudflare Worker that proxies requests to the external PW API
- */
-
-const BASE_API_URL = 'https://pw-api1-ab3091004643.herokuapp.com';
-
-// 🎯 BATCH FILTERING DISABLED - All batches from API will be shown
-// Previously used for server-side filtering, now commented out
-/*
-const ALLOWED_BATCH_IDS = [
-  "6774ebb37aa1a60276d43e7c",  // neev
-  "65df241600f257001881fbbd",  // udaan
-  "6774f509dcc961a5430bb4ba", // uday2026
-  "67a3095a0ca0d94d9c023bc9", // uday2026 - commerce
-  "6773ed69073fb66bd4a9081c", // uday2026 - humanities
-  "676e5677418e84037bd6247c", // arjuna neet
-  "676e4dee1ec923bc192f38c9", // arjuna jee
-  "6774f509fd80ba9fd582cb96", // parishram
-  "65dc6fbaf5bcd500180102cd", // lakshya neet
-  "65dc6fbabb55350018d555b7", // lakshya jee
-  "678a0324dab28c8848cc026f", // arjuna jee 2.0
-  "678a1c6c984a0ff1ae00a142", // arjuna jee 3.0
-  "678a08fc872e93ccb58047b0", // arjuna neet 2.0
-  "678a29372d11efb05956e1f8", // arjuna neet 3.0
-  "677929e692a5a811765a3658", // umang
-  "67a31ccb67ed4d0022edaa14", // parishram commerce
-  "67d7b5d9da15d97e06fb22c6", // uday isc 2026
-  "67beb6e665bd7b47d657bcbf", // neev 2.0
-  "67be1ea9508fc4755e582d8e", // udaan 2.0
-  "6789f904f69b15eb632db640", // lakshya jee 2.0
-  "678a0ffe3afbca5384419b05", // lakshya neet 2.0
-  "67738e4a5787b05d8ec6e07f", // prayas jee
-  "67738e4c6e30ac746bcb34d7", // yakeen neet
-  "65d898a774dfb200182ce11b", // udaan 2025
-  "6784c47dca2bac6bb557821c", // uday nda foundation
-  "67e4034e1d90a238e0186a0a", // arjuna neet weekend express
-  "6774f1aa440cb58775292c6e", // udaan hindi medium
-  "65ded79ac66de2001847128f", // yakeen neet 5.0
-  "67fc9f296743740c0bee0208", // udaan goat
-  "67becd2b508fc4755e5c5bde", // uday 2.0
-  "67fc9f2953d560becbad4ba7", // neev goat
-  "678a39b07764c4041763336a", // prayas jee 2.0
-  "67a3116376be70372c9967de", // uday 3.0 commerce
-  "67e555b89419a6e8b3ab706c", // ssb mantra
-  "67be1ea98627cf3431ce4132", // udaan reloaded
-  "65e2bbf5a07cbf0018f198f5", // power batch 10
-  "65df1046479ea30018d33041", // udaan 3.0 2025
-  "65ded9c3c66de20018471ac6", // yakeen neet 6.0
-  "685cf3cd8746216a1638b4d4", // arjuna jee 2.0 hindi
-  "677ba4ff2e14829a8d5ca593", // jkbose baaz 11 1.0
-  "67a30b5993d3824e289b363e", // uday commerce 2.0
-  "685cf3cd6e987196fab1ecc6", // lakshya jee 2.0 hindi
-  "679da9537999da8c2331b4a7", // sbi po interview batch
-  "", // udaan 2024
-  "6718e9d32ae489ddf85c027f", // ibps rrb po intrview
-];
-
-// Search terms for efficient batch discovery (no longer used)
-const SEARCH_TERMS = ['uday', 'arjuna', 'yakeen', 'lakshya', 'udaan', 'neev', 'parishram', 'umang', 'prayas', 'ibps', 'sbi', 'jkbose'];
-*/
+const BASE_API_URL = 'https://pw-api2-9bac5f87cf60.herokuapp.com';
 
 // CORS headers for all responses
 const CORS_HEADERS = {
@@ -342,7 +282,7 @@ async function handleVideoData(request, url) {
   }
   
   // Construct the target URL with query parameters
-  const targetUrl = new URL(`https://urlrec-072ca98cd12d.herokuapp.com/get-video-data`);
+  const targetUrl = new URL(`https://url-live-b68920287dd4.herokuapp.com/get-video-data`);
   targetUrl.searchParams.set('batchId', batchId);
   targetUrl.searchParams.set('scheduleId', scheduleId);
   
