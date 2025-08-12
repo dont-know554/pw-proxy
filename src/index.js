@@ -2,7 +2,6 @@ const BASE_API_URL = 'https://pw-api2-9bac5f87cf60.herokuapp.com';
 
 // CORS headers for all responses
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Max-Age': '86400',
@@ -26,11 +25,23 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
+    // Check if the request is coming from an allowed domain
+    const origin = request.headers.get('Origin');
+    const allowedOrigin = 'https://pwxavengers.netlify.app';
+    
+    // If Origin header is present and doesn't match our allowed domain, reject the request
+    if (origin && origin !== allowedOrigin) {
+      return createErrorResponse('Access denied: Invalid origin', 403);
+    }
+    
     // Handle CORS preflight requests
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 200,
-        headers: CORS_HEADERS,
+        headers: {
+          ...CORS_HEADERS,
+          'Access-Control-Allow-Origin': allowedOrigin,
+        },
       });
     }
 
@@ -39,7 +50,16 @@ export default {
     
     if (handler) {
       try {
-        return await handler(request, url, env);
+        const response = await handler(request, url, env);
+        
+        // Add the allowed origin to the response headers
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('Access-Control-Allow-Origin', allowedOrigin);
+        
+        return new Response(response.body, {
+          status: response.status,
+          headers: newHeaders
+        });
       } catch (error) {
         console.error('Handler error:', error);
         return createErrorResponse('Internal server error', 500);
