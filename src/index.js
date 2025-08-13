@@ -120,50 +120,51 @@ function findRouteHandler(pathname) {
 }
 
 /**
- * Enhanced proxy function with Cloudflare bypass capabilities
+ * Enhanced proxy function with advanced Cloudflare bypass capabilities
  */
 async function proxyRequest(request, url, apiPath, env) {
   const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
   
-  // Log the API URL we're about to call
   console.log('Proxying request to:', apiUrl);
   
-  // Try multiple strategies to bypass Cloudflare
+  // Try advanced bypass strategies
   const strategies = [
-    () => makeCloudflareBypassRequest(apiUrl, request, 'chrome'),
-    () => makeCloudflareBypassRequest(apiUrl, request, 'firefox'),
-    () => makeCloudflareBypassRequest(apiUrl, request, 'safari'),
-    () => makeDirectRequest(apiUrl, request)
+    () => makeAdvancedBypassRequest(apiUrl, request),
+    () => makeSessionBasedRequest(apiUrl, request),
+    () => makeMobileBypassRequest(apiUrl, request),
+    () => makeSimpleProxyRequest(apiUrl, request)
   ];
   
   for (let i = 0; i < strategies.length; i++) {
     try {
-      console.log(`Attempting strategy ${i + 1}/${strategies.length}`);
+      console.log(`Attempting advanced strategy ${i + 1}/${strategies.length}`);
       const response = await strategies[i]();
       
-      if (response.ok || (response.status >= 200 && response.status < 300)) {
-        console.log(`Strategy ${i + 1} succeeded with status:`, response.status);
-        return response;
+      // Check if we got valid JSON data
+      const responseText = await response.text();
+      
+      // If response contains valid data (not Cloudflare challenge), return it
+      if (response.status === 200 && !isCloudflareChallenge(responseText)) {
+        console.log(`Strategy ${i + 1} succeeded - got valid data`);
+        return new Response(responseText, {
+          status: 200,
+          headers: {
+            ...CORS_HEADERS,
+            'Content-Type': 'application/json',
+          },
+        });
       }
       
-      console.log(`Strategy ${i + 1} failed with status:`, response.status);
+      console.log(`Strategy ${i + 1} failed - status: ${response.status}, cloudflare: ${isCloudflareChallenge(responseText)}`);
       
-      // If it's a Cloudflare challenge, try next strategy
-      if (response.status === 403 || response.status === 503 || response.status === 530) {
-        continue;
-      }
-      
-      // For other errors, return the response
-      return response;
     } catch (error) {
       console.error(`Strategy ${i + 1} error:`, error.message);
-      if (i === strategies.length - 1) {
-        return createErrorResponse(`All bypass strategies failed. Last error: ${error.message}`, 502);
-      }
     }
   }
   
-  return createErrorResponse('All Cloudflare bypass strategies failed', 502);
+  // If all strategies fail, try a different approach - use a public proxy service
+  console.log('All direct strategies failed, trying proxy service approach');
+  return makeProxyServiceRequest(apiUrl, request);
 }
 
 /**
