@@ -1,4 +1,4 @@
-const BASE_API_URL = 'https://pw-api2-9bac5f87cf60.herokuapp.com';
+const BASE_API_URL = 'https://api.pwthor.site.com';
 
 // CORS headers for all responses
 const CORS_HEADERS = {
