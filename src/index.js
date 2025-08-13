@@ -334,7 +334,20 @@ async function handleVideoData(request, url) {
   targetUrl.searchParams.set('scheduleId', scheduleId);
   
   // Proxy the request to the new API endpoint
-  const apiResponse = await fetch(targetUrl.toString());
+  // Forward more headers from the original request
+  const headers = new Headers(request.headers);
+  
+  // Remove headers that shouldn't be forwarded
+  headers.delete('Host');
+  headers.delete('Content-Length');
+  
+  const apiRequest = new Request(targetUrl.toString(), {
+    method: request.method,
+    headers: headers,
+    body: request.method !== 'GET' ? request.body : undefined,
+  });
+  
+  const apiResponse = await fetch(apiRequest);
   
   // Create a new response with CORS headers
   const responseBody = await apiResponse.text();
@@ -367,7 +380,20 @@ async function handleVideoDataAlt(request, url) {
   targetUrl.searchParams.set('scheduleId', scheduleId);
   
   // Proxy the request to the new API endpoint
-  const apiResponse = await fetch(targetUrl.toString());
+  // Forward more headers from the original request
+  const headers = new Headers(request.headers);
+  
+  // Remove headers that shouldn't be forwarded
+  headers.delete('Host');
+  headers.delete('Content-Length');
+  
+  const apiRequest = new Request(targetUrl.toString(), {
+    method: request.method,
+    headers: headers,
+    body: request.method !== 'GET' ? request.body : undefined,
+  });
+  
+  const apiResponse = await fetch(apiRequest);
   
   // Create a new response with CORS headers
   const responseBody = await apiResponse.text();
