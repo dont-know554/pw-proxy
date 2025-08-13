@@ -10,6 +10,7 @@ const CORS_HEADERS = {
 // Route handlers
 const routes = {
   '/api/batches': handleBatches,
+  '/api/batches/by-ids': handleBatchesByIds,
   '/api/batch': handleBatch,
   '/api/batch-content': handleBatchContent,
   '/api/todays-schedule': handleTodaysSchedule,
@@ -142,6 +143,20 @@ async function handleBatches(request, url) {
   // Simply proxy the request to the original API without any filtering
   console.log('🌐 Proxying batches request - showing all batches');
   return proxyRequest(request, url, '/api/batches');
+}
+
+async function handleBatchesByIds(request, url) {
+  // Handle fetching batches by comma-separated IDs
+  const ids = url.searchParams.get('ids');
+  
+  if (!ids) {
+    return createErrorResponse('Missing required parameter: ids', 400);
+  }
+  
+  console.log('🔥 Fetching batches by IDs:', ids);
+  
+  // Proxy the request to the original API
+  return proxyRequest(request, url, '/api/batches/by-ids');
 }
 
 async function handleBatch(request, url) {
