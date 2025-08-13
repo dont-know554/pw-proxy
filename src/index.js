@@ -115,12 +115,19 @@ function findRouteHandler(pathname) {
 async function proxyRequest(request, url, apiPath) {
   const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
   
+  // Forward more headers from the original request
+  const headers = new Headers(request.headers);
+  
+  // Remove headers that shouldn't be forwarded
+  headers.delete('Host');
+  headers.delete('Content-Length');
+  
+  // Add our custom User-Agent
+  headers.set('User-Agent', 'PW-Avengers-Proxy/1.0');
+  
   const proxyRequest = new Request(apiUrl, {
     method: request.method,
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'PW-Avengers-Proxy/1.0',
-    },
+    headers: headers,
     body: request.method !== 'GET' ? request.body : undefined,
   });
 
