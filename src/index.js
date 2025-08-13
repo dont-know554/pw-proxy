@@ -120,51 +120,70 @@ function findRouteHandler(pathname) {
 }
 
 /**
- * Enhanced proxy function with advanced Cloudflare bypass capabilities
+ * Enhanced proxy function with referrer parameter fix
  */
 async function proxyRequest(request, url, apiPath, env) {
-  const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
+  // Add referrer parameter to bypass API protection
+  const urlParams = new URLSearchParams(url.search);
+  if (!urlParams.has('referrer')) {
+    urlParams.set('referrer', 'https://pwxavengers.netlify.app');
+  }
+  
+  const apiUrl = `${BASE_API_URL}${apiPath}?${urlParams.toString()}`;
   
   console.log('Proxying request to:', apiUrl);
   
-  // Try advanced bypass strategies
-  const strategies = [
-    () => makeAdvancedBypassRequest(apiUrl, request),
-    () => makeSessionBasedRequest(apiUrl, request),
-    () => makeMobileBypassRequest(apiUrl, request),
-    () => makeSimpleProxyRequest(apiUrl, request)
-  ];
+  // Create headers that mimic a browser request
+  const headers = new Headers();
   
-  for (let i = 0; i < strategies.length; i++) {
-    try {
-      console.log(`Attempting advanced strategy ${i + 1}/${strategies.length}`);
-      const response = await strategies[i]();
-      
-      // Check if we got valid JSON data
-      const responseText = await response.text();
-      
-      // If response contains valid data (not Cloudflare challenge), return it
-      if (response.status === 200 && !isCloudflareChallenge(responseText)) {
-        console.log(`Strategy ${i + 1} succeeded - got valid data`);
-        return new Response(responseText, {
-          status: 200,
-          headers: {
-            ...CORS_HEADERS,
-            'Content-Type': 'application/json',
-          },
-        });
-      }
-      
-      console.log(`Strategy ${i + 1} failed - status: ${response.status}, cloudflare: ${isCloudflareChallenge(responseText)}`);
-      
-    } catch (error) {
-      console.error(`Strategy ${i + 1} error:`, error.message);
+  // Copy safe headers from original request
+  for (const [key, value] of request.headers) {
+    const lowerKey = key.toLowerCase();
+    if (!['host', 'content-length', 'cf-ray', 'cf-visitor', 'cf-connecting-ip'].includes(lowerKey)) {
+      headers.set(key, value);
     }
   }
   
-  // If all strategies fail, try a different approach - use a public proxy service
-  console.log('All direct strategies failed, trying proxy service approach');
-  return makeProxyServiceRequest(apiUrl, request);
+  // Set essential browser headers
+  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  headers.set('Accept', 'application/json, text/plain, */*');
+  headers.set('Accept-Language', 'en-US,en;q=0.9');
+  headers.set('Accept-Encoding', 'gzip, deflate, br');
+  headers.set('Referer', 'https://pwxavengers.netlify.app/');
+  headers.set('Origin', 'https://pwxavengers.netlify.app');
+  headers.set('Connection', 'keep-alive');
+  headers.set('Cache-Control', 'no-cache');
+  headers.set('Pragma', 'no-cache');
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: request.method,
+      headers: headers,
+      body: request.method !== 'GET' ? request.body : undefined,
+      redirect: 'follow'
+    });
+    
+    const data = await response.text();
+    
+    console.log('API response status:', response.status);
+    
+    if (!response.ok) {
+      console.error('API error response:', data);
+      return createErrorResponse(`API returned ${response.status}: ${data}`, response.status);
+    }
+    
+    return new Response(data, {
+      status: response.status,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+      },
+    });
+    
+  } catch (error) {
+    console.error('Proxy request failed:', error);
+    return createErrorResponse(`Proxy request failed: ${error.message}`, 502);
+  }
 }
 
 /**
