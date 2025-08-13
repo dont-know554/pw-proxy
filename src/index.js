@@ -35,9 +35,19 @@ export default {
       'https://pwxavengers.xyz'
     ];
     
+    // Log request information for debugging
+    console.log('Proxy request received:', {
+      url: request.url,
+      method: request.method,
+      origin: origin,
+      userAgent: request.headers.get('User-Agent'),
+      allowedOrigins: allowedOrigins
+    });
+    
     // If Origin header is present and doesn't match our allowed domains, reject the request
     if (origin && !allowedOrigins.includes(origin)) {
-      return createErrorResponse('Access denied: Invalid origin', 403);
+      console.log('Origin not allowed:', origin);
+      return createErrorResponse(`Access denied: Invalid origin (${origin})`, 403);
     }
     
     // Handle CORS preflight requests
@@ -115,6 +125,9 @@ function findRouteHandler(pathname) {
 async function proxyRequest(request, url, apiPath) {
   const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
   
+  // Log the API URL we're about to call
+  console.log('Proxying request to:', apiUrl);
+  
   // Forward more headers from the original request
   const headers = new Headers(request.headers);
   
@@ -122,12 +135,25 @@ async function proxyRequest(request, url, apiPath) {
   headers.delete('Host');
   headers.delete('Content-Length');
   
-  // Add browser-like headers to appear more legitimate
-  headers.set('User-Agent', request.headers.get('User-Agent') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-  headers.set('Accept', 'application/json, text/plain, */*');
-  headers.set('Accept-Language', 'en-US,en;q=0.9');
-  headers.set('Accept-Encoding', 'gzip, deflate, br');
-  headers.set('Connection', 'keep-alive');
+  // Add browser-like headers to appear more legitimate if not already present
+  if (!headers.has('User-Agent')) {
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  }
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json, text/plain, */*');
+  }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', 'en-US,en;q=0.9');
+  }
+  if (!headers.has('Accept-Encoding')) {
+    headers.set('Accept-Encoding', 'gzip, deflate, br');
+  }
+  if (!headers.has('Connection')) {
+    headers.set('Connection', 'keep-alive');
+  }
+  
+  // Log headers being sent
+  console.log('Headers being sent:', Object.fromEntries(headers));
   
   const proxyRequest = new Request(apiUrl, {
     method: request.method,
@@ -139,10 +165,19 @@ async function proxyRequest(request, url, apiPath) {
     const response = await fetch(proxyRequest);
     const data = await response.text();
     
+    // Log response status
+    console.log('Proxy response status:', response.status);
+    
     // Handle 530 Cloudflare errors specifically
     if (response.status === 530) {
       console.error('Cloudflare 530 error: Origin server is unreachable');
       return createErrorResponse('Origin server is unreachable. This may be due to Cloudflare blocking the connection or the origin server being down.', 530);
+    }
+    
+    // Handle 403 errors specifically
+    if (response.status === 403) {
+      console.error('403 Forbidden error from origin server');
+      return createErrorResponse('Access to origin server forbidden. This may be due to Cloudflare protection or CORS restrictions.', 403);
     }
     
     return new Response(data, {
@@ -348,6 +383,9 @@ async function handleVideoData(request, url) {
   targetUrl.searchParams.set('batchId', batchId);
   targetUrl.searchParams.set('scheduleId', scheduleId);
   
+  // Log the target URL
+  console.log('handleVideoData proxying to:', targetUrl.toString());
+  
   // Proxy the request to the new API endpoint
   // Forward more headers from the original request
   const headers = new Headers(request.headers);
@@ -356,6 +394,26 @@ async function handleVideoData(request, url) {
   headers.delete('Host');
   headers.delete('Content-Length');
   
+  // Add browser-like headers to appear more legitimate if not already present
+  if (!headers.has('User-Agent')) {
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  }
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json, text/plain, */*');
+  }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', 'en-US,en;q=0.9');
+  }
+  if (!headers.has('Accept-Encoding')) {
+    headers.set('Accept-Encoding', 'gzip, deflate, br');
+  }
+  if (!headers.has('Connection')) {
+    headers.set('Connection', 'keep-alive');
+  }
+  
+  // Log headers being sent
+  console.log('handleVideoData headers:', Object.fromEntries(headers));
+  
   const apiRequest = new Request(targetUrl.toString(), {
     method: request.method,
     headers: headers,
@@ -363,6 +421,21 @@ async function handleVideoData(request, url) {
   });
   
   const apiResponse = await fetch(apiRequest);
+  
+  // Log response status
+  console.log('handleVideoData response status:', apiResponse.status);
+  
+  // Handle 530 Cloudflare errors specifically
+  if (apiResponse.status === 530) {
+    console.error('Cloudflare 530 error in handleVideoData: Origin server is unreachable');
+    return createErrorResponse('Origin server is unreachable. This may be due to Cloudflare blocking the connection or the origin server being down.', 530);
+  }
+  
+  // Handle 403 errors specifically
+  if (apiResponse.status === 403) {
+    console.error('403 Forbidden error in handleVideoData: Access to origin server forbidden');
+    return createErrorResponse('Access to origin server forbidden. This may be due to Cloudflare protection or CORS restrictions.', 403);
+  }
   
   // Create a new response with CORS headers
   const responseBody = await apiResponse.text();
