@@ -1,4 +1,4 @@
-const BASE_API_URL = 'https://api.pwthor.site.com';
+const BASE_API_URL = 'https://api.pwthor.site';
 
 // CORS headers for all responses
 const CORS_HEADERS = {
@@ -122,8 +122,12 @@ async function proxyRequest(request, url, apiPath) {
   headers.delete('Host');
   headers.delete('Content-Length');
   
-  // Add our custom User-Agent
-  headers.set('User-Agent', 'PW-Avengers-Proxy/1.0');
+  // Add browser-like headers to appear more legitimate
+  headers.set('User-Agent', request.headers.get('User-Agent') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  headers.set('Accept', 'application/json, text/plain, */*');
+  headers.set('Accept-Language', 'en-US,en;q=0.9');
+  headers.set('Accept-Encoding', 'gzip, deflate, br');
+  headers.set('Connection', 'keep-alive');
   
   const proxyRequest = new Request(apiUrl, {
     method: request.method,
@@ -131,16 +135,27 @@ async function proxyRequest(request, url, apiPath) {
     body: request.method !== 'GET' ? request.body : undefined,
   });
 
-  const response = await fetch(proxyRequest);
-  const data = await response.text();
-  
-  return new Response(data, {
-    status: response.status,
-    headers: {
-      ...CORS_HEADERS,
-      'Content-Type': 'application/json',
-    },
-  });
+  try {
+    const response = await fetch(proxyRequest);
+    const data = await response.text();
+    
+    // Handle 530 Cloudflare errors specifically
+    if (response.status === 530) {
+      console.error('Cloudflare 530 error: Origin server is unreachable');
+      return createErrorResponse('Origin server is unreachable. This may be due to Cloudflare blocking the connection or the origin server being down.', 530);
+    }
+    
+    return new Response(data, {
+      status: response.status,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'application/json',
+      },
+    });
+  } catch (error) {
+    console.error('Proxy request failed:', error);
+    return createErrorResponse(`Proxy request failed: ${error.message}`, 502);
+  }
 }
 
 /**
@@ -503,7 +518,17 @@ async function incrementCacheHit(env, cacheKey) {
  * Create error response with CORS headers
  */
 function createErrorResponse(message, status = 500) {
-  return new Response(JSON.stringify({ error: message }), {
+  // For 530 errors, provide more specific information
+  let errorMessage = message;
+  if (status === 530) {
+    errorMessage = `Cloudflare Error 530: Origin server is unreachable. ${message}`;
+  }
+  
+  return new Response(JSON.stringify({ 
+    error: errorMessage,
+    status: status,
+    timestamp: new Date().toISOString()
+  }), {
     status,
     headers: {
       ...CORS_HEADERS,
