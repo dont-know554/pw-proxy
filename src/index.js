@@ -120,89 +120,182 @@ function findRouteHandler(pathname) {
 }
 
 /**
- * Generic proxy function
+ * Enhanced proxy function with Cloudflare bypass capabilities
  */
-async function proxyRequest(request, url, apiPath) {
+async function proxyRequest(request, url, apiPath, env) {
   const apiUrl = `${BASE_API_URL}${apiPath}${url.search}`;
   
   // Log the API URL we're about to call
   console.log('Proxying request to:', apiUrl);
   
-  // Forward more headers from the original request
-  const headers = new Headers(request.headers);
+  // Try multiple strategies to bypass Cloudflare
+  const strategies = [
+    () => makeCloudflareBypassRequest(apiUrl, request, 'chrome'),
+    () => makeCloudflareBypassRequest(apiUrl, request, 'firefox'),
+    () => makeCloudflareBypassRequest(apiUrl, request, 'safari'),
+    () => makeDirectRequest(apiUrl, request)
+  ];
+  
+  for (let i = 0; i < strategies.length; i++) {
+    try {
+      console.log(`Attempting strategy ${i + 1}/${strategies.length}`);
+      const response = await strategies[i]();
+      
+      if (response.ok || (response.status >= 200 && response.status < 300)) {
+        console.log(`Strategy ${i + 1} succeeded with status:`, response.status);
+        return response;
+      }
+      
+      console.log(`Strategy ${i + 1} failed with status:`, response.status);
+      
+      // If it's a Cloudflare challenge, try next strategy
+      if (response.status === 403 || response.status === 503 || response.status === 530) {
+        continue;
+      }
+      
+      // For other errors, return the response
+      return response;
+    } catch (error) {
+      console.error(`Strategy ${i + 1} error:`, error.message);
+      if (i === strategies.length - 1) {
+        return createErrorResponse(`All bypass strategies failed. Last error: ${error.message}`, 502);
+      }
+    }
+  }
+  
+  return createErrorResponse('All Cloudflare bypass strategies failed', 502);
+}
+
+/**
+ * Make a Cloudflare bypass request with specific browser fingerprinting
+ */
+async function makeCloudflareBypassRequest(apiUrl, originalRequest, browserType = 'chrome') {
+  const headers = new Headers();
+  
+  // Remove problematic headers
+  const skipHeaders = ['host', 'content-length', 'cf-ray', 'cf-visitor', 'cf-connecting-ip'];
+  
+  // Copy safe headers from original request
+  for (const [key, value] of originalRequest.headers) {
+    if (!skipHeaders.includes(key.toLowerCase())) {
+      headers.set(key, value);
+    }
+  }
+  
+  // Set browser-specific headers for Cloudflare bypass
+  const browserConfigs = {
+    chrome: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'cross-site'
+    },
+    firefox: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    },
+    safari: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache'
+    }
+  };
+  
+  const config = browserConfigs[browserType] || browserConfigs.chrome;
+  
+  // Apply browser-specific headers
+  Object.entries(config).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
+  
+  // Add additional bypass headers
+  headers.set('Referer', BASE_API_URL);
+  headers.set('Origin', BASE_API_URL);
+  headers.set('Connection', 'keep-alive');
+  headers.set('Upgrade-Insecure-Requests', '1');
+  
+  console.log(`Making ${browserType} request with headers:`, Object.fromEntries(headers));
+  
+  const response = await fetch(apiUrl, {
+    method: originalRequest.method,
+    headers: headers,
+    body: originalRequest.method !== 'GET' ? originalRequest.body : undefined,
+    // Add additional fetch options for bypass
+    redirect: 'follow',
+    credentials: 'omit'
+  });
+  
+  const data = await response.text();
+  console.log(`${browserType} response status:`, response.status);
+  
+  // Check if we got a Cloudflare challenge page
+  if (data.includes('Checking your browser') || data.includes('cloudflare') || data.includes('cf-browser-verification')) {
+    console.log('Detected Cloudflare challenge page');
+    throw new Error('Cloudflare challenge detected');
+  }
+  
+  return new Response(data, {
+    status: response.status,
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+    },
+  });
+}
+
+/**
+ * Fallback direct request method
+ */
+async function makeDirectRequest(apiUrl, originalRequest) {
+  console.log('Making direct request as fallback');
+  
+  const headers = new Headers(originalRequest.headers);
   
   // Remove headers that shouldn't be forwarded
   headers.delete('Host');
   headers.delete('Content-Length');
   
-  // Add browser-like headers to appear more legitimate if not already present
-  if (!headers.has('User-Agent')) {
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-  }
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json, text/plain, */*');
-  }
-  if (!headers.has('Accept-Language')) {
-    headers.set('Accept-Language', 'en-US,en;q=0.9');
-  }
-  if (!headers.has('Accept-Encoding')) {
-    headers.set('Accept-Encoding', 'gzip, deflate, br');
-  }
-  if (!headers.has('Connection')) {
-    headers.set('Connection', 'keep-alive');
-  }
-  
-  // Log headers being sent
-  console.log('Headers being sent:', Object.fromEntries(headers));
-  
-  const proxyRequest = new Request(apiUrl, {
-    method: request.method,
+  const response = await fetch(apiUrl, {
+    method: originalRequest.method,
     headers: headers,
-    body: request.method !== 'GET' ? request.body : undefined,
+    body: originalRequest.method !== 'GET' ? originalRequest.body : undefined,
   });
-
-  try {
-    const response = await fetch(proxyRequest);
-    const data = await response.text();
-    
-    // Log response status
-    console.log('Proxy response status:', response.status);
-    
-    // Handle 530 Cloudflare errors specifically
-    if (response.status === 530) {
-      console.error('Cloudflare 530 error: Origin server is unreachable');
-      return createErrorResponse('Origin server is unreachable. This may be due to Cloudflare blocking the connection or the origin server being down.', 530);
-    }
-    
-    // Handle 403 errors specifically
-    if (response.status === 403) {
-      console.error('403 Forbidden error from origin server');
-      return createErrorResponse('Access to origin server forbidden. This may be due to Cloudflare protection or CORS restrictions.', 403);
-    }
-    
-    return new Response(data, {
-      status: response.status,
-      headers: {
-        ...CORS_HEADERS,
-        'Content-Type': 'application/json',
-      },
-    });
-  } catch (error) {
-    console.error('Proxy request failed:', error);
-    return createErrorResponse(`Proxy request failed: ${error.message}`, 502);
-  }
+  
+  const data = await response.text();
+  
+  return new Response(data, {
+    status: response.status,
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': response.headers.get('Content-Type') || 'application/json',
+    },
+  });
 }
 
 /**
  * Route Handlers
  */
-async function handleBatches(request, url) {
+async function handleBatches(request, url, env) {
   // Simply proxy the request to the original API without any filtering
   console.log('🌐 Proxying batches request - showing all batches');
-  return proxyRequest(request, url, '/api/batches');
+  return proxyRequest(request, url, '/api/batches', env);
 }
 
-async function handleBatchesByIds(request, url) {
+async function handleBatchesByIds(request, url, env) {
   // Handle fetching batches by comma-separated IDs
   const ids = url.searchParams.get('ids');
   
@@ -213,16 +306,16 @@ async function handleBatchesByIds(request, url) {
   console.log('🔥 Fetching batches by IDs:', ids);
   
   // Proxy the request to the original API
-  return proxyRequest(request, url, '/api/batches/by-ids');
+  return proxyRequest(request, url, '/api/batches/by-ids', env);
 }
 
-async function handleBatch(request, url) {
+async function handleBatch(request, url, env) {
   const pathParts = url.pathname.split('/');
   const batchId = pathParts[3]; // /api/batch/{batchId}
-  return proxyRequest(request, url, `/api/batch/${batchId}`);
+  return proxyRequest(request, url, `/api/batch/${batchId}`, env);
 }
 
-async function handleBatchContent(request, url) {
+async function handleBatchContent(request, url, env) {
   // Extract path parameters from URL like: /api/batch/{batchId}/subject/{subjectSlug}/schedule/{scheduleId}/content
   const pathParts = url.pathname.split('/');
   const batchId = pathParts[3];
@@ -230,26 +323,26 @@ async function handleBatchContent(request, url) {
   const scheduleId = pathParts[7];
   
   const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/schedule/${scheduleId}/content`;
-  return proxyRequest(request, url, apiPath);
+  return proxyRequest(request, url, apiPath, env);
 }
 
-async function handleTodaysSchedule(request, url) {
+async function handleTodaysSchedule(request, url, env) {
   // Extract path parameters from URL like: /api/batch/{batchId}/todays-schedule
   const pathParts = url.pathname.split('/');
   const batchId = pathParts[3];
   
   const apiPath = `/api/batch/${batchId}/todays-schedule`;
-  return proxyRequest(request, url, apiPath);
+  return proxyRequest(request, url, apiPath, env);
 }
 
-async function handleTopics(request, url) {
+async function handleTopics(request, url, env) {
   // Extract path parameters from URL like: /api/batch/{batchId}/subject/{subjectSlug}/topics
   const pathParts = url.pathname.split('/');
   const batchId = pathParts[3];
   const subjectSlug = pathParts[5];
   
   const apiPath = `/api/batch/${batchId}/subject/${subjectSlug}/topics`;
-  return proxyRequest(request, url, apiPath);
+  return proxyRequest(request, url, apiPath, env);
 }
 
 async function handleAllContents(request, url, env) {
@@ -356,16 +449,16 @@ async function handleAllContents(request, url, env) {
   }
 }
 
-async function handleStreamInfo(request, url) {
-  return proxyRequest(request, url, '/api/video/stream-info');
+async function handleStreamInfo(request, url, env) {
+  return proxyRequest(request, url, '/api/video/stream-info', env);
 }
 
-async function handleOTP(request, url) {
-  return proxyRequest(request, url, '/api/otp');
+async function handleOTP(request, url, env) {
+  return proxyRequest(request, url, '/api/otp', env);
 }
 
-async function handleUrl(request, url) {
-  return proxyRequest(request, url, '/api/url');
+async function handleUrl(request, url, env) {
+  return proxyRequest(request, url, '/api/url', env);
 }
 
 async function handleVideoData(request, url) {
@@ -467,6 +560,9 @@ async function handleVideoDataAlt(request, url) {
   targetUrl.searchParams.set('batchId', batchId);
   targetUrl.searchParams.set('scheduleId', scheduleId);
   
+  // Log the target URL
+  console.log('handleVideoDataAlt proxying to:', targetUrl.toString());
+  
   // Proxy the request to the new API endpoint
   // Forward more headers from the original request
   const headers = new Headers(request.headers);
@@ -475,6 +571,26 @@ async function handleVideoDataAlt(request, url) {
   headers.delete('Host');
   headers.delete('Content-Length');
   
+  // Add browser-like headers to appear more legitimate if not already present
+  if (!headers.has('User-Agent')) {
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  }
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json, text/plain, */*');
+  }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', 'en-US,en;q=0.9');
+  }
+  if (!headers.has('Accept-Encoding')) {
+    headers.set('Accept-Encoding', 'gzip, deflate, br');
+  }
+  if (!headers.has('Connection')) {
+    headers.set('Connection', 'keep-alive');
+  }
+  
+  // Log headers being sent
+  console.log('handleVideoDataAlt headers:', Object.fromEntries(headers));
+  
   const apiRequest = new Request(targetUrl.toString(), {
     method: request.method,
     headers: headers,
@@ -482,6 +598,21 @@ async function handleVideoDataAlt(request, url) {
   });
   
   const apiResponse = await fetch(apiRequest);
+  
+  // Log response status
+  console.log('handleVideoDataAlt response status:', apiResponse.status);
+  
+  // Handle 530 Cloudflare errors specifically
+  if (apiResponse.status === 530) {
+    console.error('Cloudflare 530 error in handleVideoDataAlt: Origin server is unreachable');
+    return createErrorResponse('Origin server is unreachable. This may be due to Cloudflare blocking the connection or the origin server being down.', 530);
+  }
+  
+  // Handle 403 errors specifically
+  if (apiResponse.status === 403) {
+    console.error('403 Forbidden error in handleVideoDataAlt: Access to origin server forbidden');
+    return createErrorResponse('Access to origin server forbidden. This may be due to Cloudflare protection or CORS restrictions.', 403);
+  }
   
   // Create a new response with CORS headers
   const responseBody = await apiResponse.text();
